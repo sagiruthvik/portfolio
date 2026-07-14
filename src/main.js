@@ -86,21 +86,37 @@ document.querySelectorAll('a[href^="#"]').forEach((a) => {
 })
 
 /* ==========================================================
-   HERO — ~10k particles assemble into "RUTHVIK", ripple away
-   from the cursor, and periodically swirl into a galaxy.
+   PARTICLES — one full-page system with three acts:
+     top of page      → ~10k particles spell "RUTHVIK"
+     scrolling down   → they blast apart and roam the background
+     contact section  → they gather into a little man waving hi
    ========================================================== */
 function initHeroParticles() {
   const holder = document.getElementById('hero-canvas')
   const hero = document.getElementById('hero')
+  const contact = document.getElementById('contact')
   const isMobile = innerWidth < 720
   const WORD = isMobile ? 'SR' : 'RUTHVIK'
+  const DEBUG_ASSEMBLED = location.hash === '#assembled'
+  const DEBUG_WAVE = location.hash === '#wave'
 
   let renderer
   try {
     renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: 'high-performance' })
   } catch {
     document.body.classList.add('no-particles')
-    return Promise.resolve()
+    return
+  }
+
+  const samplePixels = (c, step) => {
+    const data = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+    const pts = []
+    for (let y = 0; y < c.height; y += step) {
+      for (let x = 0; x < c.width; x += step) {
+        if (data[(y * c.width + x) * 4 + 3] > 128) pts.push([x, y])
+      }
+    }
+    return pts
   }
 
   // --- sample the word into points ---
@@ -116,18 +132,12 @@ function initHeroParticles() {
   cx.textAlign = 'center'
   cx.textBaseline = 'middle'
   cx.fillText(WORD, c.width / 2, c.height / 2)
-  const img = cx.getImageData(0, 0, c.width, c.height).data
 
   const TARGET_N = isMobile ? 4200 : 10500
   let step = 2
   let pts = []
   do {
-    pts = []
-    for (let y = 0; y < c.height; y += step) {
-      for (let x = 0; x < c.width; x += step) {
-        if (img[(y * c.width + x) * 4 + 3] > 128) pts.push([x - c.width / 2, -(y - c.height / 2)])
-      }
-    }
+    pts = samplePixels(c, step).map(([x, y]) => [x - c.width / 2, -(y - c.height / 2)])
     step += 0.5
   } while (pts.length > TARGET_N)
 
@@ -135,28 +145,27 @@ function initHeroParticles() {
 
   // --- three.js scene ---
   const scene = new THREE.Scene()
-  const camera = new THREE.PerspectiveCamera(50, 1, 1, 3000)
+  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 1, 3000)
   camera.position.z = 620
 
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
   holder.appendChild(renderer.domElement)
 
-  function sizeToHero() {
-    const w = hero.clientWidth
-    const h = hero.clientHeight
-    camera.aspect = w / h
+  function size() {
+    camera.aspect = innerWidth / innerHeight
     camera.updateProjectionMatrix()
-    renderer.setSize(w, h)
-    return [w, h]
+    renderer.setSize(innerWidth, innerHeight)
   }
-  let [vw, vh] = sizeToHero()
-  addEventListener('resize', () => { [vw, vh] = sizeToHero() })
+  size()
+  addEventListener('resize', size)
 
-  // world-units scale so the word spans ~72% of the view width
+  // world-units footprint of the view at z = 0
   const visibleH = 2 * camera.position.z * Math.tan((camera.fov * Math.PI) / 360)
-  const visibleW = visibleH * (vw / vh)
+  const visibleW = visibleH * (innerWidth / innerHeight)
+
+  // word placement: spans ~68% of view width, sits above centre
   const scale = Math.min((visibleW * 0.68) / textW, (visibleH * 0.38) / FONT_PX)
-  const TEXT_Y = visibleH * 0.15 // nudge the word above centre
+  const TEXT_Y = visibleH * 0.15
 
   const textPts = new Float32Array(N * 3)
   for (let i = 0; i < N; i++) {
@@ -165,32 +174,89 @@ function initHeroParticles() {
     textPts[i * 3 + 2] = (Math.random() - 0.5) * 14
   }
 
-  // galaxy targets (3-arm spiral), stored polar for cheap live rotation
-  const galR = new Float32Array(N)
-  const galA = new Float32Array(N)
-  const galZ = new Float32Array(N)
-  const galaxyRadius = Math.min(visibleW, visibleH) * 0.46
+  // --- the little waving man (body static, arm animated) ---
+  const MAN_W = 320
+  const MAN_H = 400
+  const SHOULDER = [176, 150]
+  const manBody = document.createElement('canvas')
+  manBody.width = MAN_W
+  manBody.height = MAN_H
+  {
+    const m = manBody.getContext('2d', { willReadFrequently: true })
+    m.strokeStyle = m.fillStyle = '#fff'
+    m.lineWidth = 26
+    m.lineCap = 'round'
+    m.beginPath(); m.arc(176, 66, 42, 0, Math.PI * 2); m.fill()            // head
+    m.beginPath(); m.moveTo(176, 122); m.lineTo(176, 252); m.stroke()      // torso
+    m.beginPath(); m.moveTo(176, 252); m.lineTo(126, 366); m.stroke()      // leg
+    m.beginPath(); m.moveTo(176, 252); m.lineTo(226, 366); m.stroke()      // leg
+    m.beginPath(); m.moveTo(176, 150); m.lineTo(112, 222); m.stroke()      // resting arm
+  }
+  const manArm = document.createElement('canvas')
+  manArm.width = MAN_W
+  manArm.height = MAN_H
+  {
+    const m = manArm.getContext('2d', { willReadFrequently: true })
+    m.strokeStyle = m.fillStyle = '#fff'
+    m.lineWidth = 26
+    m.lineCap = 'round'
+    m.beginPath(); m.moveTo(176, 150); m.lineTo(248, 92); m.stroke()       // raised arm
+    m.beginPath(); m.arc(258, 74, 20, 0, Math.PI * 2); m.fill()            // hand
+  }
+  const manScale = (visibleH * 0.36) / MAN_H
+  const MAN_X = isMobile ? 0 : visibleW * 0.18
+  const MAN_Y = -visibleH * 0.04
+  const toWorld = ([px, py]) => [(px - MAN_W / 2) * manScale + MAN_X, (MAN_H / 2 - py) * manScale + MAN_Y]
+  const shoulderW = toWorld(SHOULDER)
+
+  const bodyPts = samplePixels(manBody, 3).map(toWorld)
+  const armPts = samplePixels(manArm, 3).map(([px, py]) => {
+    const [wx, wy] = toWorld([px, py])
+    return [wx - shoulderW[0], wy - shoulderW[1]] // relative to the shoulder pivot
+  })
+  const armShare = armPts.length / (armPts.length + bodyPts.length)
+  const armCount = Math.max(1, Math.round(N * armShare))
+  const bodyCount = N - armCount
+  // per-particle man targets (body: absolute, arm: shoulder-relative)
+  const manTX = new Float32Array(N)
+  const manTY = new Float32Array(N)
   for (let i = 0; i < N; i++) {
-    const t = i / N
-    const arm = i % 3
-    galR[i] = Math.pow(t, 0.75) * galaxyRadius + 8
-    galA[i] = t * 11 + (arm * Math.PI * 2) / 3 + (Math.random() - 0.5) * 0.35
-    galZ[i] = (Math.random() - 0.5) * 70 * (1 - t * 0.6)
+    if (i < bodyCount) {
+      const p = bodyPts[i % bodyPts.length]
+      manTX[i] = p[0]
+      manTY[i] = p[1]
+    } else {
+      const p = armPts[i % armPts.length]
+      manTX[i] = p[0]
+      manTY[i] = p[1]
+    }
   }
 
-  const DEBUG_ASSEMBLED = location.hash === '#assembled'
+  // --- particle state ---
   const cur = new Float32Array(N * 3)
+  const vel = new Float32Array(N * 3)
   const seeds = new Float32Array(N)
-  if (DEBUG_ASSEMBLED) cur.set(textPts)
-  for (let i = 0; i < N && !DEBUG_ASSEMBLED; i++) {
-    // birth cloud: a big sphere the word assembles from
-    const r = 700 + Math.random() * 500
-    const th = Math.random() * Math.PI * 2
-    const ph = Math.acos(2 * Math.random() - 1)
-    cur[i * 3] = r * Math.sin(ph) * Math.cos(th)
-    cur[i * 3 + 1] = r * Math.sin(ph) * Math.sin(th)
-    cur[i * 3 + 2] = r * Math.cos(ph) - 300
-    seeds[i] = Math.random()
+  for (let i = 0; i < N; i++) seeds[i] = Math.random()
+
+  if (DEBUG_ASSEMBLED) {
+    cur.set(textPts)
+  } else if (DEBUG_WAVE) {
+    for (let i = 0; i < N; i++) {
+      const arm = i >= bodyCount
+      cur[i * 3] = (arm ? shoulderW[0] + manTX[i] : manTX[i]) + (Math.random() - 0.5) * 6
+      cur[i * 3 + 1] = (arm ? shoulderW[1] + manTY[i] : manTY[i]) + (Math.random() - 0.5) * 6
+      cur[i * 3 + 2] = (Math.random() - 0.5) * 14
+    }
+  } else {
+    for (let i = 0; i < N; i++) {
+      // birth cloud: a big sphere the word assembles from
+      const r = 700 + Math.random() * 500
+      const th = Math.random() * Math.PI * 2
+      const ph = Math.acos(2 * Math.random() - 1)
+      cur[i * 3] = r * Math.sin(ph) * Math.cos(th)
+      cur[i * 3 + 1] = r * Math.sin(ph) * Math.sin(th)
+      cur[i * 3 + 2] = r * Math.cos(ph) - 300
+    }
   }
 
   // colors: cyan → violet → pink across the word
@@ -232,6 +298,7 @@ function initHeroParticles() {
     size: isMobile ? 3.6 : 3.2,
     map: new THREE.CanvasTexture(sc),
     transparent: true,
+    opacity: 1,
     vertexColors: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -247,79 +314,159 @@ function initHeroParticles() {
   let ndcX = 0, ndcY = 0
   if (finePointer) {
     addEventListener('pointermove', (e) => {
-      const r = renderer.domElement.getBoundingClientRect()
-      if (e.clientY < r.top || e.clientY > r.bottom) return
-      ndcX = ((e.clientX - r.left) / r.width) * 2 - 1
-      ndcY = -((e.clientY - r.top) / r.height) * 2 + 1
+      ndcX = (e.clientX / innerWidth) * 2 - 1
+      ndcY = -(e.clientY / innerHeight) * 2 + 1
       ndc.set(ndcX, ndcY)
       ray.setFromCamera(ndc, camera)
       ray.ray.intersectPlane(plane, mouseTarget)
     })
   }
 
-  // morph cycle: word (8s) → galaxy (6s) → word …
-  let morph = 0        // 0 = word, 1 = galaxy
-  let morphGoal = 0
-  setInterval(() => { morphGoal = morphGoal === 0 ? 1 : 0 }, 9000)
+  // --- act changes, driven by scroll ---
+  let mode = null // 'text' | 'roam' | 'man'
+  const HW = visibleW * 0.55
+  const HH = visibleH * 0.55
 
+  function blast(fromX, fromY) {
+    for (let i = 0; i < N; i++) {
+      const i3 = i * 3
+      const dx = cur[i3] - fromX
+      const dy = cur[i3 + 1] - fromY
+      const d = Math.hypot(dx, dy) || 1
+      const sp = 2.5 + seeds[i] * 6.5
+      vel[i3] += (dx / d) * sp + (Math.random() - 0.5) * 1.5
+      vel[i3 + 1] += (dy / d) * sp + (Math.random() - 0.5) * 1.5
+      vel[i3 + 2] += (Math.random() - 0.5) * 3
+    }
+  }
+
+  function wantedMode() {
+    if (DEBUG_WAVE) return 'man'
+    if (contact.getBoundingClientRect().top < innerHeight * 0.6) return 'man'
+    if (scrollY < hero.offsetHeight * 0.55) return 'text'
+    return 'roam'
+  }
+
+  function applyMode(m) {
+    if (m === mode) return
+    const prev = mode
+    if (m === 'roam' && prev !== null) {
+      // the shape they're leaving explodes into the background
+      blast(prev === 'man' ? MAN_X : 0, prev === 'man' ? MAN_Y : TEXT_Y)
+    }
+    mode = m
+  }
+
+  applyMode(wantedMode())
+  addEventListener('scroll', () => applyMode(wantedMode()), { passive: true })
+
+  const clock = new THREE.Clock()
+  let assembled = DEBUG_ASSEMBLED || DEBUG_WAVE ? 1 : 0
   const REPEL_R = Math.min(visibleW, visibleH) * 0.16
   const R2 = REPEL_R * REPEL_R
 
-  let running = true
-  const io = new IntersectionObserver(([en]) => { running = en.isIntersecting }, { threshold: 0 })
-  io.observe(hero)
-
-  const clock = new THREE.Clock()
-  let assembled = 0 // eases 0→1 on load
-
   function frame() {
     requestAnimationFrame(frame)
-    if (!running) return
     const t = clock.getElapsedTime()
     const dt = Math.min(clock.getDelta() * 60, 3) || 1
 
     assembled = Math.min(assembled + 0.008 * dt, 1)
     const ease = assembled * assembled * (3 - 2 * assembled)
-    morph += (morphGoal - morph) * 0.028 * dt
-    const m = morph * morph * (3 - 2 * morph)
-    const spin = t * 0.22
-
     mouse.lerp(mouseTarget, 0.14)
 
-    const wob = 1.4 + m * 6
+    // waving arm swing (used in man mode)
+    const theta = Math.sin(t * 2.7) * 0.38 + 0.1
+    const cosA = Math.cos(theta)
+    const sinA = Math.sin(theta)
+
     for (let i = 0; i < N; i++) {
       const i3 = i * 3
       const s = seeds[i]
-      // blend word ↔ galaxy target
-      const ga = galA[i] + spin
-      const gx = Math.cos(ga) * galR[i]
-      const gy = Math.sin(ga) * galR[i] * 0.55 + TEXT_Y * 0.4
-      const gz = galZ[i]
-      let txp = textPts[i3] + (gx - textPts[i3]) * m
-      let typ = textPts[i3 + 1] + (gy - textPts[i3 + 1]) * m
-      let tzp = textPts[i3 + 2] + (gz - textPts[i3 + 2]) * m
-      // gentle breathing
-      typ += Math.sin(t * 1.3 + s * 12.56) * wob
-      txp += Math.cos(t * 1.1 + s * 9.42) * wob * 0.5
 
-      // spring toward target (scaled by assembly easing)
-      const k = 0.02 + ease * 0.075
-      cur[i3] += (txp - cur[i3]) * k * dt
-      cur[i3 + 1] += (typ - cur[i3 + 1]) * k * dt
-      cur[i3 + 2] += (tzp - cur[i3 + 2]) * k * dt
+      if (mode === 'roam') {
+        // free drift across the whole background
+        cur[i3] += vel[i3] * dt
+        cur[i3 + 1] += vel[i3 + 1] * dt
+        cur[i3 + 2] += vel[i3 + 2] * dt
+        vel[i3] *= 1 - 0.009 * dt
+        vel[i3 + 1] *= 1 - 0.009 * dt
+        vel[i3 + 2] *= 1 - 0.012 * dt
+        // keep a lazy minimum drift
+        const sp = Math.hypot(vel[i3], vel[i3 + 1])
+        if (sp < 0.22) {
+          vel[i3] += (Math.random() - 0.5) * 0.09
+          vel[i3 + 1] += (Math.random() - 0.5) * 0.09
+        }
+        // soft walls
+        if (cur[i3] > HW) vel[i3] -= 0.06 * dt
+        else if (cur[i3] < -HW) vel[i3] += 0.06 * dt
+        if (cur[i3 + 1] > HH) vel[i3 + 1] -= 0.06 * dt
+        else if (cur[i3 + 1] < -HH) vel[i3 + 1] += 0.06 * dt
+        if (cur[i3 + 2] > 200) vel[i3 + 2] -= 0.03 * dt
+        else if (cur[i3 + 2] < -200) vel[i3 + 2] += 0.03 * dt
+        // cursor stirs the field
+        const dx = cur[i3] - mouse.x
+        const dy = cur[i3 + 1] - mouse.y
+        const d2 = dx * dx + dy * dy
+        if (d2 < R2 && d2 > 0.01) {
+          const d = Math.sqrt(d2)
+          const f = ((REPEL_R - d) / REPEL_R) * 0.5 * dt
+          vel[i3] += (dx / d) * f
+          vel[i3 + 1] += (dy / d) * f
+        }
+      } else {
+        // spring toward a shape (word or waving man)
+        let tx, ty, tz
+        if (mode === 'text') {
+          tx = textPts[i3]
+          ty = textPts[i3 + 1]
+          tz = textPts[i3 + 2]
+        } else {
+          if (i < bodyCount) {
+            tx = manTX[i]
+            ty = manTY[i]
+          } else {
+            const rx = manTX[i]
+            const ry = manTY[i]
+            tx = shoulderW[0] + rx * cosA - ry * sinA
+            ty = shoulderW[1] + rx * sinA + ry * cosA
+          }
+          tz = (s - 0.5) * 16
+        }
+        // gentle breathing
+        ty += Math.sin(t * 1.3 + s * 12.56) * 1.4
+        tx += Math.cos(t * 1.1 + s * 9.42) * 0.7
 
-      // cursor ripple
-      const dx = cur[i3] - mouse.x
-      const dy = cur[i3 + 1] - mouse.y
-      const d2 = dx * dx + dy * dy
-      if (d2 < R2 && d2 > 0.01) {
-        const d = Math.sqrt(d2)
-        const f = ((REPEL_R - d) / REPEL_R) * 9 * dt
-        cur[i3] += (dx / d) * f
-        cur[i3 + 1] += (dy / d) * f
+        // leftover blast momentum fades out
+        cur[i3] += vel[i3] * dt
+        cur[i3 + 1] += vel[i3 + 1] * dt
+        cur[i3 + 2] += vel[i3 + 2] * dt
+        vel[i3] *= 1 - 0.1 * dt
+        vel[i3 + 1] *= 1 - 0.1 * dt
+        vel[i3 + 2] *= 1 - 0.1 * dt
+
+        const k = (0.02 + ease * 0.075) * dt
+        cur[i3] += (tx - cur[i3]) * k
+        cur[i3 + 1] += (ty - cur[i3 + 1]) * k
+        cur[i3 + 2] += (tz - cur[i3 + 2]) * k
+
+        // cursor ripple
+        const dx = cur[i3] - mouse.x
+        const dy = cur[i3 + 1] - mouse.y
+        const d2 = dx * dx + dy * dy
+        if (d2 < R2 && d2 > 0.01) {
+          const d = Math.sqrt(d2)
+          const f = ((REPEL_R - d) / REPEL_R) * 9 * dt
+          cur[i3] += (dx / d) * f
+          cur[i3 + 1] += (dy / d) * f
+        }
       }
     }
     geo.attributes.position.needsUpdate = true
+
+    // dim slightly while roaming behind content
+    const targetOpacity = mode === 'roam' ? 0.55 : 1
+    mat.opacity += (targetOpacity - mat.opacity) * 0.025 * dt
 
     // camera parallax
     camera.position.x += (ndcX * 26 - camera.position.x) * 0.04 * dt
@@ -329,14 +476,20 @@ function initHeroParticles() {
     renderer.render(scene, camera)
   }
   frame()
-  return Promise.resolve()
 }
 
 if (!reduced) {
   document.fonts
     .load('700 260px "Space Grotesk Variable"')
     .catch(() => {})
-    .then(() => initHeroParticles())
+    .then(() => {
+      try {
+        initHeroParticles()
+      } catch (e) {
+        console.error('particle hero failed to start:', e)
+        document.body.classList.add('no-particles')
+      }
+    })
 } else {
   document.body.classList.add('no-particles')
 }
@@ -365,23 +518,9 @@ if (finePointer) {
 }
 
 /* ==========================================================
-   Magnetic buttons + tilt cards
+   Tilt cards
    ========================================================== */
 if (finePointer && !reduced) {
-  document.querySelectorAll('.magnetic').forEach((el) => {
-    el.addEventListener('pointermove', (e) => {
-      const r = el.getBoundingClientRect()
-      const x = e.clientX - (r.left + r.width / 2)
-      const y = e.clientY - (r.top + r.height / 2)
-      el.style.transform = `translate(${x * 0.22}px, ${y * 0.22}px)`
-    })
-    el.addEventListener('pointerleave', () => {
-      el.style.transition = 'transform .4s cubic-bezier(.22,.61,.36,1)'
-      el.style.transform = ''
-      setTimeout(() => (el.style.transition = ''), 400)
-    })
-  })
-
   document.querySelectorAll('.tilt').forEach((el) => {
     el.addEventListener('pointermove', (e) => {
       const r = el.getBoundingClientRect()
@@ -541,8 +680,7 @@ document.querySelectorAll('[data-split]').forEach((el) => {
       let y = it.y * cosX - z * sinX
       z = it.y * sinX + z * cosX
       const s = f / (f + z * R)
-      const depth = (z + 1) / 2 // 0 front? (z negative = closer given our projection) —
-      const near = 1 - depth
+      const near = 1 - (z + 1) / 2
       it.el.style.transform = `translate(-50%, -50%) translate(${x * R * s}px, ${y * R * s}px) scale(${s})`
       it.el.style.opacity = (0.25 + near * 0.75).toFixed(2)
       it.el.style.zIndex = Math.round(near * 100)

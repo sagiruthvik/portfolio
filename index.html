@@ -21,6 +21,7 @@
 
   <div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
   <div class="nebula" aria-hidden="true"></div>
+  <div class="hero__canvas" id="hero-canvas" aria-hidden="true"></div>
   <div class="noise" aria-hidden="true"></div>
   <div class="cursor-dot" aria-hidden="true"></div>
   <div class="cursor-ring" aria-hidden="true"></div>
@@ -46,7 +47,6 @@
   <main id="top">
     <!-- ============ HERO ============ -->
     <section class="hero" id="hero">
-      <div class="hero__canvas" id="hero-canvas" aria-hidden="true"></div>
       <h1 class="sr-only">Sagi Ruthvik — full-stack developer</h1>
       <p class="hero__eyebrow" id="heroEyebrow">hello, I'm <em>Sagi</em> —</p>
       <div class="hero__fallback" id="heroFallback" aria-hidden="true">RUTHVIK</div>
@@ -66,8 +66,8 @@
           and questionable physics by night.
         </p>
         <div class="hero__cta">
-          <a class="btn btn--primary magnetic" href="#projects" data-hover>See the work</a>
-          <a class="btn btn--ghost magnetic" href="https://sagiruthvik.github.io/play/" target="_blank" rel="noopener" data-hover>
+          <a class="btn btn--primary" href="#projects" data-hover>See the work</a>
+          <a class="btn btn--ghost" href="https://sagiruthvik.github.io/play/" target="_blank" rel="noopener" data-hover>
             Enter the Playground <span class="btn__arrow">→</span>
           </a>
         </div>
@@ -197,27 +197,27 @@
         <h2 class="section__title" data-split>Projects</h2>
       </header>
       <div class="projects">
-        <article class="project tilt reveal" data-hover>
+        <a class="project tilt reveal" href="https://github.com/sagiruthvik" target="_blank" rel="noopener" data-hover>
           <span class="project__num">01</span>
-          <h3>Video Summarisation Platform</h3>
+          <h3>Video Summarisation Platform <span class="project__arrow">↗</span></h3>
           <p>Feeds long lecture videos through Google's Pegasus model and NLP to hand students the key takeaways — built during COVID-19 as my final-year project.</p>
           <div class="project__tech"><span>Python</span><span>NLP</span><span>Pegasus</span><span>NLTK</span></div>
           <span class="project__tag">🎓 final-year project</span>
-        </article>
-        <article class="project tilt reveal" data-hover>
+        </a>
+        <a class="project tilt reveal" href="https://github.com/sagiruthvik/Year2_Group_Project" target="_blank" rel="noopener" data-hover>
           <span class="project__num">02</span>
-          <h3>Location-Aware Web App</h3>
+          <h3>Location-Aware Web App <span class="project__arrow">↗</span></h3>
           <p>Team-built full-stack app: authentication, location-based search on the Google Maps API and a complete CRUD backend.</p>
           <div class="project__tech"><span>React</span><span>Spring Boot</span><span>MySQL</span><span>Maps API</span></div>
           <span class="project__tag">🤝 team project</span>
-        </article>
-        <article class="project tilt reveal" data-hover>
+        </a>
+        <a class="project tilt reveal" href="https://github.com/sagiruthvik" target="_blank" rel="noopener" data-hover>
           <span class="project__num">03</span>
-          <h3>Dockerised CRUD Platform</h3>
+          <h3>Dockerised CRUD Platform <span class="project__arrow">↗</span></h3>
           <p>Enterprise-style CRUD platform with containerised, multi-version MySQL testing — Laravel and TypeScript in a Docker sandwich.</p>
           <div class="project__tech"><span>Laravel</span><span>TypeScript</span><span>Docker</span><span>MySQL</span></div>
           <span class="project__tag">🐳 infrastructure</span>
-        </article>
+        </a>
         <a class="project tilt reveal" href="https://github.com/sagiruthvik/expo-todo-app" target="_blank" rel="noopener" data-hover>
           <span class="project__num">04</span>
           <h3>Expo Todo App <span class="project__arrow">↗</span></h3>
@@ -294,7 +294,7 @@
             Open to interesting projects, good ideas, and conversations about fintech,
             web tech, or why my planets keep getting eaten by the star.
           </p>
-          <a class="contact__email magnetic" href="mailto:ruthvik.1202@gmail.com" data-hover>ruthvik.1202@gmail.com</a>
+          <a class="contact__email" href="mailto:ruthvik.1202@gmail.com" data-hover>ruthvik.1202@gmail.com</a>
         </div>
         <form class="contact__form reveal" action="https://formspree.io/f/xyzrobza" method="POST">
           <label>
@@ -309,7 +309,7 @@
             <span>message</span>
             <textarea name="message" rows="5" required data-hover></textarea>
           </label>
-          <button class="btn btn--primary magnetic" type="submit" data-hover>Send it <span class="btn__arrow">→</span></button>
+          <button class="btn btn--primary" type="submit" data-hover>Send it <span class="btn__arrow">→</span></button>
         </form>
       </div>
     </section>

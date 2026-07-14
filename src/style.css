@@ -216,7 +216,8 @@ body.menu-open .nav__burger span:last-child { transform: translateY(-4px) rotate
   padding: calc(var(--nav-h) + 1rem) clamp(1.25rem, 5vw, 4rem) 5.5rem;
   overflow: hidden;
 }
-.hero__canvas { position: absolute; inset: 0; z-index: 0; }
+/* the particle field lives behind the whole page */
+.hero__canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 .hero__canvas canvas { display: block; }
 
 .hero__eyebrow {
@@ -284,8 +285,8 @@ body.no-particles .hero__canvas { display: none; }
   font-family: var(--font-display); font-weight: 600;
   font-size: 0.95rem; text-decoration: none;
   padding: 0.85rem 1.7rem; border-radius: 999px;
-  border: 0; transition: box-shadow 0.3s ease, background 0.3s ease;
-  will-change: transform;
+  border: 1px solid transparent;
+  transition: box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease;
 }
 .btn--primary { background: var(--grad); color: #0a0a14; }
 .btn--primary:hover { box-shadow: 0 8px 40px rgba(124, 108, 255, 0.45); }
