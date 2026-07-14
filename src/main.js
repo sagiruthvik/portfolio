@@ -89,16 +89,16 @@ document.querySelectorAll('a[href^="#"]').forEach((a) => {
    PARTICLES — one full-page system with three acts:
      top of page      → ~10k particles spell "RUTHVIK"
      scrolling down   → they blast apart and roam the background
-     contact section  → they gather into a little man waving hi
+     bottom of page   → they spell thanks in three languages
    ========================================================== */
 function initHeroParticles() {
   const holder = document.getElementById('hero-canvas')
   const hero = document.getElementById('hero')
-  const contact = document.getElementById('contact')
+  const finale = document.getElementById('finale')
   const isMobile = innerWidth < 720
   const WORD = isMobile ? 'SR' : 'RUTHVIK'
   const DEBUG_ASSEMBLED = location.hash === '#assembled'
-  const DEBUG_WAVE = location.hash === '#wave'
+  const DEBUG_THANKS = location.hash === '#thanks'
 
   let renderer
   try {
@@ -174,63 +174,37 @@ function initHeroParticles() {
     textPts[i * 3 + 2] = (Math.random() - 0.5) * 14
   }
 
-  // --- the little waving man (body static, arm animated) ---
-  const MAN_W = 320
-  const MAN_H = 400
-  const SHOULDER = [176, 150]
-  const manBody = document.createElement('canvas')
-  manBody.width = MAN_W
-  manBody.height = MAN_H
-  {
-    const m = manBody.getContext('2d', { willReadFrequently: true })
-    m.strokeStyle = m.fillStyle = '#fff'
-    m.lineWidth = 26
-    m.lineCap = 'round'
-    m.beginPath(); m.arc(176, 66, 42, 0, Math.PI * 2); m.fill()            // head
-    m.beginPath(); m.moveTo(176, 122); m.lineTo(176, 252); m.stroke()      // torso
-    m.beginPath(); m.moveTo(176, 252); m.lineTo(126, 366); m.stroke()      // leg
-    m.beginPath(); m.moveTo(176, 252); m.lineTo(226, 366); m.stroke()      // leg
-    m.beginPath(); m.moveTo(176, 150); m.lineTo(112, 222); m.stroke()      // resting arm
-  }
-  const manArm = document.createElement('canvas')
-  manArm.width = MAN_W
-  manArm.height = MAN_H
-  {
-    const m = manArm.getContext('2d', { willReadFrequently: true })
-    m.strokeStyle = m.fillStyle = '#fff'
-    m.lineWidth = 26
-    m.lineCap = 'round'
-    m.beginPath(); m.moveTo(176, 150); m.lineTo(248, 92); m.stroke()       // raised arm
-    m.beginPath(); m.arc(258, 74, 20, 0, Math.PI * 2); m.fill()            // hand
-  }
-  const manScale = (visibleH * 0.36) / MAN_H
-  const MAN_X = isMobile ? 0 : visibleW * 0.18
-  const MAN_Y = -visibleH * 0.04
-  const toWorld = ([px, py]) => [(px - MAN_W / 2) * manScale + MAN_X, (MAN_H / 2 - py) * manScale + MAN_Y]
-  const shoulderW = toWorld(SHOULDER)
-
-  const bodyPts = samplePixels(manBody, 3).map(toWorld)
-  const armPts = samplePixels(manArm, 3).map(([px, py]) => {
-    const [wx, wy] = toWorld([px, py])
-    return [wx - shoulderW[0], wy - shoulderW[1]] // relative to the shoulder pivot
+  // --- the goodbye: thanks in three languages, morphing at page bottom ---
+  const PHRASES = ['THANK YOU', 'MERCI', 'ధన్యవాదాలు']
+  const msgWords = PHRASES.map((text) => {
+    const mc = document.createElement('canvas')
+    let mx = mc.getContext('2d', { willReadFrequently: true })
+    const px = 220
+    const font = `700 ${px}px "Space Grotesk Variable", "Space Grotesk", sans-serif`
+    mx.font = font
+    const w = Math.ceil(mx.measureText(text).width)
+    mc.width = w + 60
+    mc.height = px * 1.6
+    mx = mc.getContext('2d', { willReadFrequently: true })
+    mx.font = font
+    mx.fillStyle = '#fff'
+    mx.textAlign = 'center'
+    mx.textBaseline = 'middle'
+    mx.fillText(text, mc.width / 2, mc.height / 2)
+    const s = Math.min((visibleW * 0.84) / w, (visibleH * 0.22) / px)
+    let st = 2
+    let p = []
+    do {
+      p = samplePixels(mc, st).map(([xx, yy]) => [(xx - mc.width / 2) * s, -(yy - mc.height / 2) * s])
+      st += 0.5
+    } while (p.length > 9000)
+    return p
   })
-  const armShare = armPts.length / (armPts.length + bodyPts.length)
-  const armCount = Math.max(1, Math.round(N * armShare))
-  const bodyCount = N - armCount
-  // per-particle man targets (body: absolute, arm: shoulder-relative)
-  const manTX = new Float32Array(N)
-  const manTY = new Float32Array(N)
-  for (let i = 0; i < N; i++) {
-    if (i < bodyCount) {
-      const p = bodyPts[i % bodyPts.length]
-      manTX[i] = p[0]
-      manTY[i] = p[1]
-    } else {
-      const p = armPts[i % armPts.length]
-      manTX[i] = p[0]
-      manTY[i] = p[1]
-    }
-  }
+  let msgCur = 0
+  let msgTo = 0
+  let msgM = 1
+  let msgLastSwitch = 0
+  let lastFy = 0
 
   // --- particle state ---
   const cur = new Float32Array(N * 3)
@@ -240,11 +214,12 @@ function initHeroParticles() {
 
   if (DEBUG_ASSEMBLED) {
     cur.set(textPts)
-  } else if (DEBUG_WAVE) {
+  } else if (DEBUG_THANKS) {
+    const w0 = msgWords[0]
     for (let i = 0; i < N; i++) {
-      const arm = i >= bodyCount
-      cur[i * 3] = (arm ? shoulderW[0] + manTX[i] : manTX[i]) + (Math.random() - 0.5) * 6
-      cur[i * 3 + 1] = (arm ? shoulderW[1] + manTY[i] : manTY[i]) + (Math.random() - 0.5) * 6
+      const p = w0[i % w0.length]
+      cur[i * 3] = p[0] + (Math.random() - 0.5) * 6
+      cur[i * 3 + 1] = p[1] + (Math.random() - 0.5) * 6
       cur[i * 3 + 2] = (Math.random() - 0.5) * 14
     }
   } else {
@@ -323,7 +298,7 @@ function initHeroParticles() {
   }
 
   // --- act changes, driven by scroll ---
-  let mode = null // 'text' | 'roam' | 'man'
+  let mode = null // 'text' | 'roam' | 'message'
   const HW = visibleW * 0.55
   const HH = visibleH * 0.55
 
@@ -341,8 +316,8 @@ function initHeroParticles() {
   }
 
   function wantedMode() {
-    if (DEBUG_WAVE) return 'man'
-    if (contact.getBoundingClientRect().top < innerHeight * 0.6) return 'man'
+    if (DEBUG_THANKS) return 'message'
+    if (finale.getBoundingClientRect().top < innerHeight * 0.92) return 'message'
     if (scrollY < hero.offsetHeight * 0.55) return 'text'
     return 'roam'
   }
@@ -352,7 +327,7 @@ function initHeroParticles() {
     const prev = mode
     if (m === 'roam' && prev !== null) {
       // the shape they're leaving explodes into the background
-      blast(prev === 'man' ? MAN_X : 0, prev === 'man' ? MAN_Y : TEXT_Y)
+      blast(0, prev === 'message' ? lastFy : TEXT_Y)
     }
     mode = m
   }
@@ -361,7 +336,7 @@ function initHeroParticles() {
   addEventListener('scroll', () => applyMode(wantedMode()), { passive: true })
 
   const clock = new THREE.Clock()
-  let assembled = DEBUG_ASSEMBLED || DEBUG_WAVE ? 1 : 0
+  let assembled = DEBUG_ASSEMBLED || DEBUG_THANKS ? 1 : 0
   const REPEL_R = Math.min(visibleW, visibleH) * 0.16
   const R2 = REPEL_R * REPEL_R
 
@@ -374,10 +349,31 @@ function initHeroParticles() {
     const ease = assembled * assembled * (3 - 2 * assembled)
     mouse.lerp(mouseTarget, 0.14)
 
-    // waving arm swing (used in man mode)
-    const theta = Math.sin(t * 2.7) * 0.38 + 0.1
-    const cosA = Math.cos(theta)
-    const sinA = Math.sin(theta)
+    // goodbye message: track the finale band + cycle languages
+    let fy = 0
+    let em = 0
+    let wa = msgWords[0]
+    let wb = msgWords[0]
+    if (mode === 'message') {
+      if (!DEBUG_THANKS) {
+        const r = finale.getBoundingClientRect()
+        const py = r.top + r.height * 0.42
+        fy = ((innerHeight / 2 - py) * visibleH) / innerHeight
+      }
+      lastFy = fy
+      if (msgM >= 1 && t - msgLastSwitch > 4.8) {
+        msgTo = (msgCur + 1) % msgWords.length
+        msgM = 0
+        msgLastSwitch = t
+      }
+      if (msgM < 1) {
+        msgM = Math.min(1, msgM + 0.013 * dt)
+        if (msgM >= 1) msgCur = msgTo
+      }
+      wa = msgWords[msgCur]
+      wb = msgWords[msgTo]
+      em = msgM * msgM * (3 - 2 * msgM)
+    }
 
     for (let i = 0; i < N; i++) {
       const i3 = i * 3
@@ -415,22 +411,17 @@ function initHeroParticles() {
           vel[i3 + 1] += (dy / d) * f
         }
       } else {
-        // spring toward a shape (word or waving man)
+        // spring toward a shape (the name, or the goodbye message)
         let tx, ty, tz
         if (mode === 'text') {
           tx = textPts[i3]
           ty = textPts[i3 + 1]
           tz = textPts[i3 + 2]
         } else {
-          if (i < bodyCount) {
-            tx = manTX[i]
-            ty = manTY[i]
-          } else {
-            const rx = manTX[i]
-            const ry = manTY[i]
-            tx = shoulderW[0] + rx * cosA - ry * sinA
-            ty = shoulderW[1] + rx * sinA + ry * cosA
-          }
+          const a = wa[i % wa.length]
+          const b = wb[i % wb.length]
+          tx = a[0] + (b[0] - a[0]) * em
+          ty = a[1] + (b[1] - a[1]) * em + fy
           tz = (s - 0.5) * 16
         }
         // gentle breathing

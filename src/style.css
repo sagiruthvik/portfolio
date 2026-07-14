@@ -698,6 +698,24 @@ body.no-particles .hero__canvas { display: none; }
 
 @media (max-width: 860px) { .contact { grid-template-columns: 1fr; } }
 
+/* ============ finale ============ */
+.finale {
+  height: 54vh;
+  min-height: 320px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 1.2rem;
+}
+.finale__note {
+  font-family: var(--font-display);
+  color: var(--dim);
+  font-size: 0.78rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
 /* ============ footer ============ */
 .footer {
   display: flex; align-items: center; justify-content: space-between;
