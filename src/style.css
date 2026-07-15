@@ -700,12 +700,12 @@ body.no-particles .hero__canvas { display: none; }
 
 /* ============ finale ============ */
 .finale {
-  height: 54vh;
-  min-height: 320px;
+  height: 30vh;
+  min-height: 220px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding-bottom: 1.2rem;
+  padding-bottom: 0.8rem;
 }
 .finale__note {
   font-family: var(--font-display);

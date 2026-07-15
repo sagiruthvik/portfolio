@@ -142,6 +142,7 @@ function initHeroParticles() {
   } while (pts.length > TARGET_N)
 
   const N = pts.length
+  if (!N) throw new Error('name sampling produced no points')
 
   // --- three.js scene ---
   const scene = new THREE.Scene()
@@ -191,19 +192,19 @@ function initHeroParticles() {
     mx.textAlign = 'center'
     mx.textBaseline = 'middle'
     mx.fillText(text, mc.width / 2, mc.height / 2)
-    const s = Math.min((visibleW * 0.84) / w, (visibleH * 0.22) / px)
+    const s = Math.min((visibleW * 0.5) / w, (visibleH * 0.13) / px)
     let st = 2
     let p = []
     do {
       p = samplePixels(mc, st).map(([xx, yy]) => [(xx - mc.width / 2) * s, -(yy - mc.height / 2) * s])
       st += 0.5
     } while (p.length > 9000)
+    if (!p.length) p.push([0, 0]) // font missing → degenerate but harmless
     return p
   })
   let msgCur = 0
-  let msgTo = 0
-  let msgM = 1
   let msgLastSwitch = 0
+  let msgJustEntered = true
   let lastFy = 0
 
   // --- particle state ---
@@ -278,7 +279,9 @@ function initHeroParticles() {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   })
-  scene.add(new THREE.Points(geo, mat))
+  const points = new THREE.Points(geo, mat)
+  points.frustumCulled = false // positions mutate every frame; never cull, never compute bounds
+  scene.add(points)
 
   // cursor in world space
   const mouse = new THREE.Vector3(99999, 99999, 0)
@@ -302,22 +305,24 @@ function initHeroParticles() {
   const HW = visibleW * 0.55
   const HH = visibleH * 0.55
 
-  function blast(fromX, fromY) {
+  function blast(fromX, fromY, power = 1) {
     for (let i = 0; i < N; i++) {
       const i3 = i * 3
       const dx = cur[i3] - fromX
       const dy = cur[i3 + 1] - fromY
       const d = Math.hypot(dx, dy) || 1
-      const sp = 2.5 + seeds[i] * 6.5
-      vel[i3] += (dx / d) * sp + (Math.random() - 0.5) * 1.5
-      vel[i3 + 1] += (dy / d) * sp + (Math.random() - 0.5) * 1.5
-      vel[i3 + 2] += (Math.random() - 0.5) * 3
+      const sp = (2.5 + seeds[i] * 6.5) * power
+      vel[i3] += (dx / d) * sp + (Math.random() - 0.5) * 1.5 * power
+      vel[i3 + 1] += (dy / d) * sp + (Math.random() - 0.5) * 1.5 * power
+      vel[i3 + 2] += (Math.random() - 0.5) * 3 * power
     }
   }
 
   function wantedMode() {
     if (DEBUG_THANKS) return 'message'
-    if (finale.getBoundingClientRect().top < innerHeight * 0.92) return 'message'
+    const ft = finale.getBoundingClientRect().top
+    // hysteresis so hovering at the threshold can't rapid-fire blasts
+    if (mode === 'message' ? ft < innerHeight * 1.12 : ft < innerHeight * 0.96) return 'message'
     if (scrollY < hero.offsetHeight * 0.55) return 'text'
     return 'roam'
   }
@@ -329,6 +334,7 @@ function initHeroParticles() {
       // the shape they're leaving explodes into the background
       blast(0, prev === 'message' ? lastFy : TEXT_Y)
     }
+    if (m === 'message') msgJustEntered = true
     mode = m
   }
 
@@ -349,30 +355,28 @@ function initHeroParticles() {
     const ease = assembled * assembled * (3 - 2 * assembled)
     mouse.lerp(mouseTarget, 0.14)
 
-    // goodbye message: track the finale band + cycle languages
+    // goodbye message: track the finale band + cycle languages.
+    // language changes are a soft "poof" (dissolve outward) and re-form —
+    // never a positional cross-fade, which reads as two words overlapping.
     let fy = 0
-    let em = 0
     let wa = msgWords[0]
-    let wb = msgWords[0]
     if (mode === 'message') {
       if (!DEBUG_THANKS) {
         const r = finale.getBoundingClientRect()
-        const py = r.top + r.height * 0.42
+        const py = r.top + r.height * 0.46
         fy = ((innerHeight / 2 - py) * visibleH) / innerHeight
       }
       lastFy = fy
-      if (msgM >= 1 && t - msgLastSwitch > 4.8) {
-        msgTo = (msgCur + 1) % msgWords.length
-        msgM = 0
+      if (msgJustEntered) {
+        msgJustEntered = false
         msgLastSwitch = t
       }
-      if (msgM < 1) {
-        msgM = Math.min(1, msgM + 0.013 * dt)
-        if (msgM >= 1) msgCur = msgTo
+      if (t - msgLastSwitch > 5.2) {
+        msgLastSwitch = t
+        msgCur = (msgCur + 1) % msgWords.length
+        blast(0, fy, 0.4)
       }
       wa = msgWords[msgCur]
-      wb = msgWords[msgTo]
-      em = msgM * msgM * (3 - 2 * msgM)
     }
 
     for (let i = 0; i < N; i++) {
@@ -419,9 +423,8 @@ function initHeroParticles() {
           tz = textPts[i3 + 2]
         } else {
           const a = wa[i % wa.length]
-          const b = wb[i % wb.length]
-          tx = a[0] + (b[0] - a[0]) * em
-          ty = a[1] + (b[1] - a[1]) * em + fy
+          tx = a[0]
+          ty = a[1] + fy
           tz = (s - 0.5) * 16
         }
         // gentle breathing
@@ -455,9 +458,13 @@ function initHeroParticles() {
     }
     geo.attributes.position.needsUpdate = true
 
-    // dim slightly while roaming behind content
-    const targetOpacity = mode === 'roam' ? 0.55 : 1
+    // dim slightly while roaming behind content; smaller dots when packed
+    // into the compact goodbye so the letters stay crisp
+    const targetOpacity = mode === 'roam' ? 0.55 : mode === 'message' ? 0.85 : 1
     mat.opacity += (targetOpacity - mat.opacity) * 0.025 * dt
+    const baseSize = isMobile ? 3.6 : 3.2
+    const targetSize = mode === 'message' ? baseSize * 0.62 : baseSize
+    mat.size += (targetSize - mat.size) * 0.03 * dt
 
     // camera parallax
     camera.position.x += (ndcX * 26 - camera.position.x) * 0.04 * dt
